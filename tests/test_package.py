@@ -23,6 +23,8 @@ class PackageTests(unittest.TestCase):
             self.assertIn('Depends: luci-base, luci-compat, docker, dockerd, docker-compose', text)
             self.assertEqual(control.extractfile('./conffiles').read(), b'/etc/config/hideck\n')
         with tarfile.open(fileobj=io.BytesIO(data_bytes)) as data:
+            for directory in ['usr/libexec/hideck', 'usr/share/hideck']:
+                self.assertTrue(data.getmember('./' + directory).isdir())
             for name in ['usr/libexec/rpcd/luci.hideck', 'usr/libexec/hideck/manage', 'usr/libexec/hideck/setup', 'etc/hotplug.d/usb/30-dji-qdc507']:
                 self.assertEqual(data.getmember('./' + name).mode, 0o755)
             self.assertIn('server:', data.extractfile('./usr/share/hideck/config.yaml').read().decode())

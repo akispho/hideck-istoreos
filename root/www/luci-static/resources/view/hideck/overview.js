@@ -81,6 +81,7 @@ return view.extend({
         var content = E('div', { 'class': 'cbi-map' }, [
             E('h2', {}, 'HiDeck'),
             E('div', { 'class': 'cbi-map-descr' }, '管理 HiDeck 服务。启动后可打开管理界面，管理模块、短信和 eSIM。'),
+            E('div', { 'class': 'cbi-map-descr' }, ['DJI 兼容版更新请使用 ', E('a', { 'href': 'https://github.com/akispho/hideck-istoreos/releases', 'target': '_blank', 'rel': 'noopener noreferrer' }, '本项目 Releases'), '；直接换成未含补丁的官方镜像可能丢失模块识别。']),
             E('div', { 'class': 'cbi-section' }, [
                 E('h3', {}, '服务状态'),
                 E('div', { 'aria-live': 'polite' }, [row('运行状态', this.stateNode), row('健康检查', this.healthNode)]),

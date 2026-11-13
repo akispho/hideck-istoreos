@@ -15,6 +15,13 @@ def archive(entries):
     stream = io.BytesIO()
     with gzip.GzipFile(fileobj=stream, mode='wb', mtime=0) as compressed:
         with tarfile.open(fileobj=compressed, mode='w', format=tarfile.GNU_FORMAT) as tar:
+            directories = {parent.as_posix() for name, _, _ in entries for parent in Path(name).parents if parent.as_posix() != '.'}
+            for name in sorted(directories):
+                item = tarfile.TarInfo('./' + name)
+                item.type, item.mode, item.mtime = tarfile.DIRTYPE, 0o755, EPOCH
+                item.uid = item.gid = 0
+                item.uname = item.gname = 'root'
+                tar.addfile(item)
             for name, data, mode in sorted(entries):
                 item = tarfile.TarInfo('./' + name)
                 item.size, item.mode, item.mtime = len(data), mode, EPOCH

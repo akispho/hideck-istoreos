@@ -1,0 +1,25 @@
+diff --git a/web/src/views/Settings.vue b/web/src/views/Settings.vue
+index c91fb5c..d6fcf29 100644
+--- a/web/src/views/Settings.vue
++++ b/web/src/views/Settings.vue
+@@ -421,7 +421,10 @@ function showUpdateInstructions() {
+   const info = updateInfo.value
+   if (!info) return
+ 
+-  const instructions = info.is_docker
++  const isDJIBuild = info.current_version.includes('-dji')
++  const instructions = isDJIBuild
++    ? '当前是 DJI 兼容版，请从 https://github.com/akispho/hideck-istoreos/releases 安装对应更新。\n请勿直接切换官方 latest 镜像：未合入兼容补丁的版本可能无法识别 DJI 模块。'
++    : info.is_docker
+     ? 'docker compose pull\ndocker compose up -d'
+     : '请按当前安装方式重新部署对应版本；本程序不会在运行中覆盖自身文件。'
+   const content = h('div', { class: 'space-y-3 text-sm leading-6' }, [
+@@ -431,7 +434,7 @@ function showUpdateInstructions() {
+       class: 'overflow-x-auto rounded-[var(--ui-radius-lg)] border border-[var(--el-border-color)] bg-[var(--el-fill-color-light)] p-3 text-xs whitespace-pre-wrap'
+     }, instructions)
+   ])
+-  ElMessageBox.alert(content, info.is_docker ? 'Docker 更新方法' : '更新方法', {
++  ElMessageBox.alert(content, isDJIBuild ? 'DJI 兼容版更新方法' : info.is_docker ? 'Docker 更新方法' : '更新方法', {
+     confirmButtonText: '知道了',
+     type: 'warning'
+   })

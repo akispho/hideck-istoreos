@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
-const source = fs.readFileSync(__dirname + '/../root/www/luci-static/resources/view/hideck/status.js', 'utf8');
+const source = fs.readFileSync(__dirname + '/../root/www/luci-static/resources/view/hideck/overview.js', 'utf8');
 function panel() {
     const state = { available: true, running: true, state: 'running', health: 'healthy', port: 7575 };
     const calls = [], notifications = [];

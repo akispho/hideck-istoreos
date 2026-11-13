@@ -5,7 +5,7 @@ case "$arch" in amd64|arm64) ;; *) exit 1 ;; esac
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$root/upstream"
 test "$(git rev-parse HEAD)" = 9e017722b51c812734494b4a3f2ae89870d23ce2
-git apply "$root/patches/0001-dji-qdc507.patch"
+for patch in "$root"/patches/*.patch; do git apply "$patch"; done
 cp "$root/tests/discovery_dji_test.go" internal/device/
 go test ./internal/device -run 'TestDiscoverFallback|TestUSBAT|TestSelectBestAT|TestClassifyMode' -count=1
 (cd web && npm ci --no-audit --no-fund && npm run build)
