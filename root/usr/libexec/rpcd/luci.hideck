@@ -1,0 +1,46 @@
+#!/usr/bin/lua
+local json = require "luci.jsonc"
+local sys = require "luci.sys"
+local uci = require "uci".cursor()
+
+if arg[1] == "list" then
+    io.write('{"status":{},"start":{},"stop":{},"set_port":{"port":0}}\n')
+    return
+end
+local method = arg[1] == "call" and arg[2] or nil
+local result
+if method == "status" then
+    local state = json.parse(sys.exec("docker inspect --type container --format '{{json .State}}' hideck 2>/dev/null"))
+    result = { available = type(state) == "table", running = false, port = tonumber(uci:get("hideck", "main", "port")) or 7575 }
+    if result.available then
+        result.running = state.Running == true
+        result.state = state.Status
+        result.health = state.Health and state.Health.Status or "none"
+    else
+        result.error = "无法读取 HiDeck 容器，请先按安装说明部署并确认 Docker 正在运行。"
+    end
+elseif method == "start" or method == "stop" or method == "set_port" then
+    local command = "/usr/libexec/hideck/manage "
+    if method == "set_port" then
+        local request = json.parse(io.read("*a"))
+        local port = type(request) == "table" and request.port or nil
+        if type(port) ~= "number" or port ~= math.floor(port) or port < 1 or port > 65535 then
+            io.write(json.stringify({ ok = false, error = "请输入 1–65535 之间的整数端口。" }), "\n")
+            return
+        end
+        command = command .. "set-port " .. string.format("%d", port)
+    else
+        command = command .. method
+    end
+    local code = sys.call(command .. " >/dev/null 2>&1")
+    local errors = {
+        [2] = "端口格式不正确。", [3] = "该端口已被占用，请换一个端口。",
+        [4] = "部署配置不完整，请按安装说明完成部署。", [5] = "应用失败，已恢复原端口。",
+        [6] = "另一个端口操作正在执行，请稍后重试。", [7] = "应用和自动恢复均失败，请检查 Docker 日志和部署目录。"
+    }
+    result = { ok = code == 0 }
+    if code ~= 0 then result.error = method == "set_port" and (errors[code] or "修改端口失败，请检查 Docker。") or "服务操作失败，请检查 Docker 和容器状态。" end
+else
+    os.exit(1)
+end
+io.write(json.stringify(result), "\n")

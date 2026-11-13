@@ -1,0 +1,8 @@
+{
+  "admin/services/hideck": {
+    "title": "HiDeck",
+    "order": 90,
+    "action": { "type": "view", "path": "hideck/status" },
+    "depends": { "acl": ["luci-app-hideck"] }
+  }
+}

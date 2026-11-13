@@ -1,0 +1,5 @@
+#!/bin/sh
+[ -n "$IPKG_INSTROOT" ] && exit 0
+chmod 755 /usr/libexec/rpcd/luci.hideck /usr/libexec/hideck/manage /etc/hotplug.d/usb/30-dji-qdc507
+/etc/init.d/rpcd reload
+exit 0

@@ -1,0 +1,3 @@
+config hideck 'main'
+	option data_dir '/opt/hideck'
+	option port '7575'

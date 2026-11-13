@@ -1,0 +1,37 @@
+diff --git a/internal/device/discovery_compat.go b/internal/device/discovery_compat.go
+index 7694493..d4ff673 100644
+--- a/internal/device/discovery_compat.go
++++ b/internal/device/discovery_compat.go
+@@ -187,7 +187,7 @@ func discoverFallbackOne(usbPath string) (CompatibleModem, bool) {
+ 		}, true
+ 	}
+ 
+-	if vid != 0x2c7c && vid != 0x05c6 {
++	if vid != quectelVendorID && vid != qualcommVendorID && !(vid == djiVendorID && pid == djiQDC507ProductID) {
+ 		return CompatibleModem{}, false
+ 	}
+ 
+diff --git a/internal/device/usb_at_port_rules.go b/internal/device/usb_at_port_rules.go
+index 737789b..99d3d22 100644
+--- a/internal/device/usb_at_port_rules.go
++++ b/internal/device/usb_at_port_rules.go
+@@ -5,6 +5,8 @@ import "strings"
+ const (
+ 	quectelVendorID              = 0x2c7c
+ 	qualcommVendorID             = 0x05c6
++	djiVendorID                  = 0x2ca3
++	djiQDC507ProductID           = 0x4006
+ 	quectel0125ProductID         = 0x0125
+ 	quectelEC200UProductID       = 0x0901
+ 	quectelEC200DProductID       = 0x0902
+@@ -35,6 +37,10 @@ type usbATPortRule struct {
+ 
+ func usbATPortRuleFor(identity usbDeviceIdentity, mode string) (usbATPortRule, bool) {
+ 	mode = strings.ToLower(strings.TrimSpace(mode))
++	// DJI's QDC507 composition exposes the verified AT port on USB interface 2.
++	if identity.vendorID == djiVendorID && identity.productID == djiQDC507ProductID {
++		return usbInterfaceATPortRule(2), true
++	}
+ 	if identity.vendorID == qualcommVendorID && mode == "qmi" {
+ 		return usbInterfaceATPortRule(2), true
+ 	}

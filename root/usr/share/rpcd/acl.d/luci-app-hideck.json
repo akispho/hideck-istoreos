@@ -1,0 +1,7 @@
+{
+  "luci-app-hideck": {
+    "description": "View and control the HiDeck container",
+    "read": { "ubus": { "luci.hideck": ["status"] } },
+    "write": { "ubus": { "luci.hideck": ["start", "stop", "set_port"] } }
+  }
+}

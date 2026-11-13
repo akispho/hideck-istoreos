@@ -1,0 +1,60 @@
+#!/bin/sh
+set -eu
+root=${1:-}
+adopt=${2:-}
+case "$root" in /*) ;; *) echo 'Usage: setup /absolute/data/directory [--adopt]' >&2; exit 1 ;; esac
+case "$adopt" in ''|--adopt) ;; *) exit 1 ;; esac
+image=${HIDECK_IMAGE:-$(cat /usr/share/hideck/image)}
+docker image inspect "$image" >/dev/null 2>&1 || { echo 'HiDeck image is not loaded. Run install.sh first.' >&2; exit 1; }
+mkdir -p "$root"
+root=$(cd "$root" && pwd -P)
+running=missing
+if docker inspect --type container hideck >/dev/null 2>&1; then
+    [ "$adopt" = --adopt ] || { echo 'Container hideck already exists. Use --adopt only for a matching deployment.' >&2; exit 1; }
+    previous=$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' hideck)
+    [ "$previous" = "$root" ] || { echo 'Existing container belongs to another directory. Nothing changed.' >&2; exit 1; }
+    running=$(docker inspect --format '{{.State.Running}}' hideck)
+fi
+if [ -f "$root/docker-compose.yml" ] && [ "$adopt" != --adopt ]; then
+    echo 'Deployment files already exist. Refusing to overwrite without --adopt.' >&2
+    exit 1
+fi
+port=$(uci -q get hideck.main.port || echo 7575)
+case "$port" in ''|*[!0-9]*) exit 1 ;; esac
+[ "$port" -ge 1 ] && [ "$port" -le 65535 ] || exit 1
+backup="$root/backups/istoreos-$(date +%Y%m%d%H%M%S)"
+mkdir -p "$backup" "$root/config" "$root/data" "$root/logs"
+chmod 700 "$root/config" "$root/data" "$root/backups" "$backup"
+for file in docker-compose.yml .env; do
+    [ ! -f "$root/$file" ] || cp -p "$root/$file" "$backup/$file"
+done
+if [ ! -f "$root/config/config.yaml" ]; then
+    cp /usr/share/hideck/config.yaml "$root/config/config.yaml"
+    chmod 600 "$root/config/config.yaml"
+fi
+cp /usr/share/hideck/docker-compose.yml "$root/docker-compose.yml"
+umask 077
+printf 'HIDECK_IMAGE=%s\nHIDECK_PORT=%s\n' "$image" "$port" > "$root/.env"
+compose() {
+    docker compose -p hideck --project-directory "$root" --env-file "$root/.env" -f "$root/docker-compose.yml" "$@"
+}
+compose config -q
+if [ "$running" = false ]; then
+    if compose create --pull never --force-recreate; then installed=1; else installed=0; fi
+else
+    if compose up -d --pull never; then installed=1; else installed=0; fi
+fi
+if [ "$installed" = 0 ]; then
+    for file in docker-compose.yml .env; do
+        [ ! -f "$backup/$file" ] || cp -p "$backup/$file" "$root/$file"
+    done
+    if [ "$running" = true ]; then compose up -d --pull never || true; fi
+    echo "Deployment failed; previous files restored when present. Backup: $backup" >&2
+    exit 1
+fi
+uci set hideck.main=hideck
+uci set "hideck.main.data_dir=$root"
+uci set "hideck.main.port=$port"
+uci commit hideck
+ACTION=add PRODUCT=2ca3/4006/0 /etc/hotplug.d/usb/30-dji-qdc507
+echo 'HiDeck is ready in LuCI: Services → HiDeck.'

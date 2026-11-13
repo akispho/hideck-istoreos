@@ -1,0 +1,89 @@
+name: Build and release
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: node --test tests/panel.test.cjs
+      - run: python3 -m unittest discover -s tests -p 'test_*.py' -v
+      - run: |
+          for f in install.sh scripts/*.sh root/usr/libexec/hideck/* root/etc/hotplug.d/usb/* root/etc/uci-defaults/*; do sh -n "$f"; done
+          if [ "$GITHUB_REF_TYPE" = tag ]; then test "$GITHUB_REF_NAME" = "v$(cat VERSION)"; fi
+      - run: python3 scripts/build-package.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: luci-package
+          path: dist/*.ipk
+  images:
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    needs: tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: yibaiba/hideck
+          ref: 9e017722b51c812734494b4a3f2ae89870d23ce2
+          path: upstream
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.4'
+          cache-dependency-path: upstream/go.sum
+      - run: sh scripts/build-backend.sh ${{ matrix.arch }}
+      - uses: docker/setup-buildx-action@v3
+      - run: |
+          docker buildx build --load --platform linux/${{ matrix.arch }} --build-arg TARGETARCH=${{ matrix.arch }} -t hideck-istoreos:$(cat VERSION) .
+          docker save hideck-istoreos:$(cat VERSION) | gzip -1 > dist/hideck-dji-linux-${{ matrix.arch }}.tar.gz
+      - name: Test amd64 image HTTP service
+        if: matrix.arch == 'amd64'
+        run: |
+          mkdir smoke-config
+          cp root/usr/share/hideck/config.yaml smoke-config/config.yaml
+          docker run -d --name hideck-smoke -p 17575:7575 -v "$PWD/smoke-config:/app/config" hideck-istoreos:$(cat VERSION)
+          ready=0
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:17575/ping; then ready=1; break; fi
+            sleep 2
+          done
+          docker logs hideck-smoke
+          docker rm -f hideck-smoke
+          test "$ready" = 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: image-${{ matrix.arch }}
+          path: dist/hideck-dji-linux-${{ matrix.arch }}.tar.gz
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [tests, images]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - run: |
+          cp install.sh dist/install.sh
+          cd dist
+          sha256sum *.ipk *.tar.gz install.sh > SHA256SUMS
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --title "HiDeck iStoreOS $GITHUB_REF_NAME" --notes-file docs/release-notes.md --verify-tag

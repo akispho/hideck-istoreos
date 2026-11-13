@@ -1,0 +1,8 @@
+#!/bin/sh
+case "${ACTION}:${PRODUCT}" in
+    add:2ca3/4006/*) ;;
+    *) exit 0 ;;
+esac
+modprobe option || exit 1
+# Re-registering an ID already held by the driver is harmless.
+printf '2ca3 4006\n' > /sys/bus/usb-serial/drivers/option1/new_id 2>/dev/null || true

@@ -1,0 +1,5 @@
+*
+!dist/
+!dist/hideck-linux-*
+!LICENSE
+!UPSTREAM_THIRD_PARTY_NOTICES.md

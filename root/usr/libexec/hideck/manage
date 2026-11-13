@@ -1,0 +1,57 @@
+#!/bin/sh
+set -eu
+
+compose() {
+    docker compose -p hideck --project-directory "$root" --env-file "$root/.env" -f "$root/docker-compose.yml" "$@"
+}
+
+case "${1:-}" in
+    start) exec docker start hideck ;;
+    stop) exec docker stop --time 10 hideck ;;
+    set-port) ;;
+    *) exit 2 ;;
+esac
+port=${2:-}
+case "$port" in ''|*[!0-9]*) exit 2 ;; esac
+[ "${#port}" -le 5 ] && [ "$port" -ge 1 ] && [ "$port" -le 65535 ] || exit 2
+root=$(uci -q get hideck.main.data_dir) || exit 4
+old_port=$(uci -q get hideck.main.port) || exit 4
+case "$root" in /*) ;; *) exit 4 ;; esac
+[ -f "$root/.env" ] && [ -f "$root/docker-compose.yml" ] || exit 4
+[ "$old_port" != "$port" ] || exit 0
+
+# Hold one lock across file replacement, container recreation and rollback.
+mkdir /var/lock/hideck-port 2>/dev/null || exit 6
+trap 'rmdir /var/lock/hideck-port' EXIT
+trap 'exit 1' HUP INT TERM
+if netstat -lnt | awk -v port="$port" '$4 ~ (":" port "$") { found=1 } END { exit !found }'; then
+    exit 3
+fi
+running=$(docker inspect --type container --format '{{.State.Running}}' hideck 2>/dev/null) || exit 4
+case "$running" in true|false) ;; *) exit 4 ;; esac
+cp -p "$root/.env" "$root/.env.port-backup"
+tmp=$(mktemp "$root/.env.XXXXXX")
+awk -v port="$port" '!/^HIDECK_PORT=/ { print } END { print "HIDECK_PORT=" port }' "$root/.env" > "$tmp"
+chmod 600 "$tmp"
+mv "$tmp" "$root/.env"
+if [ "$running" = true ]; then
+    action=up
+    if compose up -d --pull never --force-recreate; then
+        uci set "hideck.main.port=$port" && uci commit hideck && exit 0
+    fi
+else
+    action=create
+    if compose create --pull never --force-recreate; then
+        uci set "hideck.main.port=$port" && uci commit hideck && exit 0
+    fi
+fi
+
+cp -p "$root/.env.port-backup" "$root/.env"
+uci set "hideck.main.port=$old_port"
+uci commit hideck
+if [ "$action" = up ]; then
+    compose up -d --pull never --force-recreate || exit 7
+else
+    compose create --pull never --force-recreate || exit 7
+fi
+exit 5

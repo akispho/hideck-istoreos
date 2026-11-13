@@ -1,0 +1,9 @@
+dist/
+upstream/
+.env
+*.ipk
+*.tar
+*.tar.gz
+*.pyc
+__pycache__/
+.DS_Store

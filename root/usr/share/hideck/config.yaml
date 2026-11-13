@@ -1,0 +1,14 @@
+devices: []
+server:
+  port: 7575
+  https_enabled: false
+  https_port: 7576
+web:
+  username: admin
+  password: admin
+system:
+  openwrt_dynamic_interfaces: false
+modem_voice:
+  auto_enable_adb: false
+mcp:
+  enabled: false
